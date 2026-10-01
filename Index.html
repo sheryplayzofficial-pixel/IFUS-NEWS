@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFÜS — International Federation of Ümlaut Sport</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+</head>
+<body class="bg-[#090d16] text-slate-100 min-h-screen">
+    <header class="sticky top-0 z-50 backdrop-blur-md bg-[#090d16]/80 border-b border-slate-800 px-6 h-20 flex items-center justify-between">
+        <span class="font-bold text-2xl tracking-wider">IF<span class="text-rose-500">Ü</span>S</span>
+        <button onclick="toggleAdminModal()" class="bg-slate-800 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-700">Creator Portal</button>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-12">
+        <section class="text-center py-12">
+            <h1 class="text-5xl sm:text-7xl font-black mb-4">THE FASTEST GROWING SPORT ON EARTH: <span class="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-amber-300">ÜMLAUT</span></h1>
+            <p class="text-slate-400 mb-6">Swipe strictly the top hair. Master the yellow line boundaries.</p>
+        </section>
+
+        <section id="news" class="py-12 border-t border-slate-800">
+            <h2 class="text-2xl font-bold mb-6 text-rose-500">IFÜS News Feed</h2>
+            <div id="news-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </section>
+    </main>
+
+    <div id="admin-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="bg-[#111827] border border-slate-800 w-full max-w-lg rounded-2xl p-6 relative">
+            <button onclick="toggleAdminModal()" class="absolute top-4 right-4 text-slate-400 text-xl">&times;</button>
+            <div id="admin-login-view">
+                <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                    <input type="password" id="admin-passcode" placeholder="Enter creator passcode..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white">
+                    <button type="submit" class="w-full py-2 rounded-xl bg-rose-600 font-bold">Access</button>
+                </form>
+            </div>
+            <div id="admin-studio-view" class="hidden">
+                <form id="post-form" onsubmit="handlePublishPost(event)" class="space-y-4">
+                    <input type="text" id="post-title" required placeholder="Headline" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white">
+                    <select id="post-category" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white"><option value="Tournament">Tournament</option><option value="Rule Update">Rule Update</option></select>
+                    <textarea id="post-content" required placeholder="Content" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white"></textarea>
+                    <button type="submit" class="w-full py-2 bg-emerald-600 rounded-xl">Publish</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+        const firebaseConfig = { projectId: "ifus-news-927ab", authDomain: "ifus-news-927ab.firebaseapp.com" };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const newsCol = collection(db, "news");
+
+        async function renderNewsFeed() {
+            const container = document.getElementById('news-container');
+            const isAdmin = sessionStorage.getItem('ifus_is_admin') === 'true';
+            try {
+                const q = query(newsCol, orderBy("timestamp", "desc"));
+                const querySnapshot = await getDocs(q);
+                if (querySnapshot.empty) { container.innerHTML = `<div class="col-span-full text-slate-500">No news updates yet.</div>`; return; }
+                container.innerHTML = querySnapshot.docs.map(docSnap => {
+                    const post = docSnap.data();
+                    return `<article class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 relative">
+                        ${isAdmin ? `<button onclick="deletePost('${docSnap.id}')" class="absolute top-4 right-4 text-slate-500 hover:text-rose-500"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold border border-rose-500/20 bg-rose-500/10 text-rose-400">${post.category}</span>
+                        <h3 class="font-bold text-xl mt-4 text-white">${post.title}</h3>
+                        <p class="text-slate-400 text-sm mt-2">${post.content}</p>
+                    </article>`;
+                }).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        window.deletePost = async (id) => { await deleteDoc(doc(db, "news", id)); renderNewsFeed(); };
+        window.handlePublishPost = async (e) => {
+            e.preventDefault();
+            await addDoc(newsCol, {
+                title: document.getElementById('post-title').value,
+                category: document.getElementById('post-category').value,
+                content: document.getElementById('post-content').value,
+                timestamp: Date.now()
+            });
+            document.getElementById('post-form').reset(); toggleAdminModal(); renderNewsFeed();
+        };
+
+        window.toggleAdminModal = () => {
+            const modal = document.getElementById('admin-modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                if (sessionStorage.getItem('ifus_is_admin') === 'true') {
+                    document.getElementById('admin-login-view').classList.add('hidden');
+                    document.getElementById('admin-studio-view').classList.remove('hidden');
+                } else {
+                    document.getElementById('admin-login-view').classList.remove('hidden');
+                    document.getElementById('admin-studio-view').classList.add('hidden');
+                    document.getElementById('admin-passcode').value = '';
+                }
+            }
+        };
+
+        window.handleAdminLogin = (e) => {
+            e.preventDefault();
+            if (['oumlaut2026', 'admin', 'umlaut'].includes(document.getElementById('admin-passcode').value)) {
+                sessionStorage.setItem('ifus_is_admin', 'true'); toggleAdminModal(); renderNewsFeed();
+            } else { alert("Invalid Passcode"); }
+        };
+
+        window.onload = renderNewsFeed;
+    </script>
+</body>
+</html>
